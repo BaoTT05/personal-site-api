@@ -1,0 +1,105 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [ main ]
+    paths: 
+      - 'backend/**'
+      - 'infra/**'
+      - '.github/workflows/backend-deploy.yml'
+  pull_request:
+    branches: [ main ]
+    paths: 
+      - 'backend/**'
+      - 'infra/**'
+
+env:
+  AWS_REGION: us-east-1
+  SAM_TEMPLATE: infra/template.yaml
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'corretto'
+    
+    - name: Cache Maven dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+    
+    - name: Run backend tests
+      run: |
+        cd backend
+        mvn clean test
+    
+    - name: Build backend
+      run: |
+        cd backend
+        mvn clean package -DskipTests
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'corretto'
+    
+    - name: Set up AWS SAM CLI
+      uses: aws-actions/setup-sam@v2
+      with:
+        use-installer: true
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Cache Maven dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+    
+    - name: Build and deploy backend
+      run: |
+        cd backend
+        mvn clean package -DskipTests
+        cd ../
+        sam build --template-file ${{ env.SAM_TEMPLATE }}
+        sam deploy --no-confirm-changeset --no-fail-on-empty-changeset \
+          --stack-name personal-site-api \
+          --region ${{ env.AWS_REGION }} \
+          --capabilities CAPABILITY_IAM \
+          --parameter-overrides \
+            Environment=prod \
+            DomainName=${{ secrets.DOMAIN_NAME }}
+    
+    - name: Get API Gateway URL
+      run: |
+        API_URL=$(aws cloudformation describe-stacks \
+          --stack-name personal-site-api \
+          --region ${{ env.AWS_REGION }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
+          --output text)
+        echo "API_URL=$API_URL" >> $GITHUB_ENV
+        echo "::notice::API Gateway URL: $API_URL"

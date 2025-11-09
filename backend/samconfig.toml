@@ -1,0 +1,34 @@
+# SAM configuration file for personal-site-api
+
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "personal-site-api-dev"
+s3_bucket = ""  # Will be created automatically by SAM
+s3_prefix = "personal-site-api-dev"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Stage=\"dev\" CorsOrigin=\"*\""
+image_repositories = []
+resolve_s3 = true
+disable_rollback = true
+
+
+[default.global.parameters]
+region = "us-east-1"
+[production]
+[production.deploy]
+[production.deploy.parameters]
+stack_name = "personal-site-api-prod"
+s3_bucket = ""  # Will be created automatically by SAM
+s3_prefix = "personal-site-api"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = [
+    "Stage=prod",
+    "CorsOrigin=https://yourdomain.com"  # Replace with your actual domain
+]
+image_repositories = []
