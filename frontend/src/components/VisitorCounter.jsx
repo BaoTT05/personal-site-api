@@ -5,8 +5,7 @@ const VisitorCounter = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // TODO: Replace with actual API Gateway URL when deployed
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/visit';
+  const API_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     const incrementVisitorCount = async () => {

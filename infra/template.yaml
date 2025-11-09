@@ -1,19 +1,50 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: 'Personal Website - Simple visitor counter'
+Description: 'Personal Website - Full-stack infrastructure with frontend hosting and backend API'
 
 Parameters:
   Stage:
     Type: String
     Default: prod
+    AllowedValues: [dev, staging, prod]
     Description: Deployment stage
+    
+  DomainName:
+    Type: String
+    Default: ""
+    Description: "Custom domain name for the website (e.g., example.com). Leave empty to skip custom domain setup."
+    
+  CreateHostedZone:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: "Whether to create a new Route 53 hosted zone or use existing one"
+    
+  ExistingHostedZoneId:
+    Type: String
+    Default: ""
+    Description: "Existing Route 53 hosted zone ID (required if CreateHostedZone is false and DomainName is provided)"
+
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref DomainName, ""]]
+  CreateNewHostedZone: !And 
+    - !Condition HasCustomDomain
+    - !Equals [!Ref CreateHostedZone, "true"]
+  UseExistingHostedZone: !And 
+    - !Condition HasCustomDomain
+    - !Equals [!Ref CreateHostedZone, "false"]
+  IsProduction: !Equals [!Ref Stage, "prod"]
 
 Resources:
+  # ===================
+  # Backend Resources
+  # ===================
+  
   # DynamoDB Table
   VisitorCountsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "VisitorCounts-${Stage}"
+      TableName: !Sub "${AWS::StackName}-VisitorCounts-${Stage}"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: pk
@@ -21,12 +52,21 @@ Resources:
       KeySchema:
         - AttributeName: pk
           KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !If [IsProduction, true, false]
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Stage
+        - Key: Component
+          Value: Backend
 
   # Lambda Function
   VisitorCounterFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "visitor-counter-${Stage}"
+      FunctionName: !Sub "${AWS::StackName}-visitor-counter-${Stage}"
       CodeUri: ../backend/target/personal-site-api-1.0.0.jar
       Handler: dev.baotrinh.personal_site_api.VisitorCounterHandler::handleRequest
       Runtime: java21
@@ -35,9 +75,18 @@ Resources:
       Environment:
         Variables:
           VISITOR_COUNTS_TABLE: !Ref VisitorCountsTable
+          STAGE: !Ref Stage
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref VisitorCountsTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-visitor-counter-${Stage}*"
       Events:
         VisitApi:
           Type: HttpApi
@@ -45,25 +94,528 @@ Resources:
             Path: /visit
             Method: post
             ApiId: !Ref VisitorCounterApi
+      Tags:
+        Environment: !Ref Stage
+        Component: Backend
 
   # API Gateway
   VisitorCounterApi:
     Type: AWS::Serverless::HttpApi
     Properties:
+      StageName: !Ref Stage
       CorsConfiguration:
         AllowOrigins:
-          - "*"
+          - !If 
+            - HasCustomDomain
+            - !Sub "https://${DomainName}"
+            - "*"
+          - !If 
+            - HasCustomDomain
+            - !Sub "https://www.${DomainName}"
+            - "*"
+          - !GetAtt WebsiteCloudFrontDistribution.DomainName
         AllowHeaders:
           - "Content-Type"
+          - "X-Amz-Date"
+          - "Authorization"
+          - "X-Api-Key"
+          - "X-Amz-Security-Token"
         AllowMethods:
+          - GET
           - POST
           - OPTIONS
+        AllowCredentials: false
+        MaxAge: 300
+      Tags:
+        Environment: !Ref Stage
+        Component: Backend
+
+  # ===================
+  # Frontend Resources
+  # ===================
+  
+  # S3 Bucket for Static Website Hosting
+  WebsiteS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-website-${Stage}-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: !If [IsProduction, Enabled, Suspended]
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+          - Id: DeleteOldVersions
+            Status: !If [IsProduction, Enabled, Disabled]
+            NoncurrentVersionExpirationInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Stage
+        - Key: Component
+          Value: Frontend
+
+  # CloudWatch Log Group for S3 Bucket
+  WebsiteS3BucketLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/s3/${AWS::StackName}-website-${Stage}"
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  # Origin Access Control for CloudFront
+  WebsiteOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-${Stage}-OAC"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # S3 Bucket Policy for CloudFront Access
+  WebsiteS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteS3Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: 's3:GetObject'
+            Resource: !Sub "${WebsiteS3Bucket}/*"
+            Condition:
+              StringEquals:
+                'AWS:SourceArn': !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteCloudFrontDistribution}"
+
+  # CloudFront Distribution
+  WebsiteCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases: !If
+          - HasCustomDomain
+          - - !Ref DomainName
+            - !Sub "www.${DomainName}"
+          - !Ref "AWS::NoValue"
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: !If [IsProduction, PriceClass_All, PriceClass_100]
+        
+        # Origins
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt WebsiteS3Bucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !Ref WebsiteOriginAccessControl
+        
+        # Default Cache Behavior (for SPA routing)
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf  # CORS-S3Origin
+          ResponseHeadersPolicyId: !Ref SecurityHeadersResponsePolicy
+          Compress: true
+          
+        # Additional Cache Behaviors for static assets
+        CacheBehaviors:
+          # Cache static assets (JS, CSS, images) aggressively
+          - PathPattern: "/static/*"
+            TargetOriginId: S3Origin
+            ViewerProtocolPolicy: redirect-to-https
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized
+            OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf  # CORS-S3Origin
+            ResponseHeadersPolicyId: !Ref SecurityHeadersResponsePolicy
+            Compress: true
+            
+          # Cache Vite assets with hash in filename
+          - PathPattern: "/assets/*"
+            TargetOriginId: S3Origin
+            ViewerProtocolPolicy: redirect-to-https
+            CachePolicyId: !If 
+              - IsProduction
+              - 658327ea-f89d-4fab-a63d-7e88639e58f6  # CachingOptimized for production
+              - 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled for dev
+            OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf  # CORS-S3Origin
+            ResponseHeadersPolicyId: !Ref SecurityHeadersResponsePolicy
+            Compress: true
+        
+        # Custom Error Pages for SPA routing
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+        
+        # SSL Certificate
+        ViewerCertificate: !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref SSLCertificate
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        
+        # Logging
+        Logging: !If
+          - IsProduction
+          - Bucket: !GetAtt CloudFrontLogsBucket.DomainName
+            IncludeCookies: false
+            Prefix: !Sub "access-logs/${Stage}/"
+          - !Ref "AWS::NoValue"
+          
+        # Web Application Firewall
+        WebACLId: !If [IsProduction, !Ref WebACL, !Ref "AWS::NoValue"]
+        
+      Tags:
+        - Key: Environment
+          Value: !Ref Stage
+        - Key: Component
+          Value: Frontend
+
+  # Security Headers Response Policy
+  SecurityHeadersResponsePolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub "${AWS::StackName}-security-headers-${Stage}"
+        SecurityHeadersConfig:
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Override: false
+          ContentTypeOptions:
+            Override: false
+          FrameOptions:
+            FrameOption: DENY
+            Override: false
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: false
+        CustomHeadersConfig:
+          Items:
+            - Header: X-Permitted-Cross-Domain-Policies
+              Value: none
+              Override: false
+            - Header: Permissions-Policy
+              Value: "geolocation=(), microphone=(), camera=()"
+              Override: false
+
+  # CloudFront Logs S3 Bucket (Production only)
+  CloudFrontLogsBucket:
+    Type: AWS::S3::Bucket
+    Condition: IsProduction
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-cloudfront-logs-${Stage}-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldLogs
+            Status: Enabled
+            ExpirationInDays: 90
+      Tags:
+        - Key: Environment
+          Value: !Ref Stage
+        - Key: Component
+          Value: Logging
+
+  # ===================
+  # DNS & SSL Resources
+  # ===================
+  
+  # Route 53 Hosted Zone (if creating new)
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Condition: CreateNewHostedZone
+    Properties:
+      Name: !Ref DomainName
+      HostedZoneConfig:
+        Comment: !Sub "Hosted zone for ${DomainName} - ${Stage} environment"
+      Tags:
+        - Key: Environment
+          Value: !Ref Stage
+        - Key: Component
+          Value: DNS
+
+  # SSL Certificate
+  SSLCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: HasCustomDomain
+    Properties:
+      DomainName: !Ref DomainName
+      SubjectAlternativeNames:
+        - !Sub "www.${DomainName}"
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !If 
+            - CreateNewHostedZone
+            - !Ref HostedZone
+            - !Ref ExistingHostedZoneId
+        - DomainName: !Sub "www.${DomainName}"
+          HostedZoneId: !If 
+            - CreateNewHostedZone
+            - !Ref HostedZone
+            - !Ref ExistingHostedZoneId
+      Tags:
+        - Key: Environment
+          Value: !Ref Stage
+        - Key: Component
+          Value: SSL
+
+  # Route 53 Record for root domain
+  RootDomainRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: HasCustomDomain
+    Properties:
+      HostedZoneId: !If 
+        - CreateNewHostedZone
+        - !Ref HostedZone
+        - !Ref ExistingHostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt WebsiteCloudFrontDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2  # CloudFront hosted zone ID
+
+  # Route 53 Record for www subdomain
+  WWWDomainRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: HasCustomDomain
+    Properties:
+      HostedZoneId: !If 
+        - CreateNewHostedZone
+        - !Ref HostedZone
+        - !Ref ExistingHostedZoneId
+      Name: !Sub "www.${DomainName}"
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt WebsiteCloudFrontDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2  # CloudFront hosted zone ID
+
+  # ===================
+  # Security Resources
+  # ===================
+  
+  # WAF Web ACL (Production only)
+  WebACL:
+    Type: AWS::WAFv2::WebACL
+    Condition: IsProduction
+    Properties:
+      Name: !Sub "${AWS::StackName}-${Stage}-WebACL"
+      Scope: CLOUDFRONT
+      DefaultAction:
+        Allow: {}
+      Rules:
+        # Rate limiting rule
+        - Name: RateLimitRule
+          Priority: 1
+          Statement:
+            RateBasedStatement:
+              Limit: 2000
+              AggregateKeyType: IP
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: RateLimitRule
+        
+        # AWS Managed Core Rule Set
+        - Name: AWSManagedRulesCommonRuleSet
+          Priority: 2
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: CommonRuleSetMetric
+
+        # AWS Managed Known Bad Inputs Rule Set
+        - Name: AWSManagedRulesKnownBadInputsRuleSet
+          Priority: 3
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesKnownBadInputsRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: KnownBadInputsRuleSetMetric
+      
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub "${AWS::StackName}WebACL"
+      
+      Tags:
+        - Key: Environment
+          Value: !Ref Stage
+        - Key: Component
+          Value: Security
+
+  # ===================
+  # IAM Resources
+  # ===================
+  
+  # IAM Role for deployment automation
+  DeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-deployment-role-${Stage}"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Sub "${AWS::StackName}-${Stage}"
+      Policies:
+        - PolicyName: S3DeploymentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "${WebsiteS3Bucket}/*"
+                  - !Sub "${WebsiteS3Bucket}"
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                Resource: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteCloudFrontDistribution}"
+      Tags:
+        - Key: Environment
+          Value: !Ref Stage
+        - Key: Component
+          Value: Deployment
 
 Outputs:
+  # Backend Outputs
   ApiUrl:
-    Description: "API Gateway endpoint URL"
+    Description: "API Gateway endpoint URL for backend services"
     Value: !Sub "https://${VisitorCounterApi}.execute-api.${AWS::Region}.amazonaws.com"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiUrl-${Stage}"
     
   TableName:
     Description: "DynamoDB table name"
     Value: !Ref VisitorCountsTable
+    Export:
+      Name: !Sub "${AWS::StackName}-TableName-${Stage}"
+
+  # Frontend Outputs
+  WebsiteS3Bucket:
+    Description: "S3 bucket for website hosting"
+    Value: !Ref WebsiteS3Bucket
+    Export:
+      Name: !Sub "${AWS::StackName}-WebsiteS3Bucket-${Stage}"
+  
+  CloudFrontDistributionId:
+    Description: "CloudFront distribution ID"
+    Value: !Ref WebsiteCloudFrontDistribution
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontDistributionId-${Stage}"
+  
+  CloudFrontDomainName:
+    Description: "CloudFront distribution domain name"
+    Value: !GetAtt WebsiteCloudFrontDistribution.DomainName
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontDomainName-${Stage}"
+  
+  WebsiteURL:
+    Description: "Website URL"
+    Value: !If
+      - HasCustomDomain
+      - !Sub "https://${DomainName}"
+      - !Sub "https://${WebsiteCloudFrontDistribution.DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-WebsiteURL-${Stage}"
+  
+  # DNS Outputs
+  HostedZoneId:
+    Condition: CreateNewHostedZone
+    Description: "Route 53 Hosted Zone ID"
+    Value: !Ref HostedZone
+    Export:
+      Name: !Sub "${AWS::StackName}-HostedZoneId-${Stage}"
+  
+  NameServers:
+    Condition: CreateNewHostedZone
+    Description: "Route 53 Name Servers (update your domain registrar with these)"
+    Value: !Join [", ", !GetAtt HostedZone.NameServers]
+  
+  SSLCertificateArn:
+    Condition: HasCustomDomain
+    Description: "SSL Certificate ARN"
+    Value: !Ref SSLCertificate
+    Export:
+      Name: !Sub "${AWS::StackName}-SSLCertificateArn-${Stage}"
+  
+  # Security Outputs
+  WebACLArn:
+    Condition: IsProduction
+    Description: "WAF Web ACL ARN"
+    Value: !GetAtt WebACL.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-WebACLArn-${Stage}"
+  
+  # Deployment Outputs
+  DeploymentRoleArn:
+    Description: "IAM Role ARN for deployment automation"
+    Value: !GetAtt DeploymentRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-DeploymentRoleArn-${Stage}"
+  
+  # Configuration for frontend deployment
+  FrontendConfig:
+    Description: "Frontend configuration values (JSON format)"
+    Value: !Sub |
+      {
+        "apiUrl": "https://${VisitorCounterApi}.execute-api.${AWS::Region}.amazonaws.com",
+        "stage": "${Stage}",
+        "region": "${AWS::Region}"
+      }
+    Export:
+      Name: !Sub "${AWS::StackName}-FrontendConfig-${Stage}"

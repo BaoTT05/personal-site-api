@@ -32,20 +32,25 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
     
+    - name: Build backend JAR
+      run: |
+        cd backend
+        mvn clean package -DskipTests
+    
     - name: Deploy backend
       run: |
-        sam build --template-file infra/template.yaml
-        sam deploy --no-confirm-changeset --no-fail-on-empty-changeset \
-          --stack-name personal-site-api \
+        sam deploy --template-file infra/cloudflare-template.yaml \
+          --stack-name personal-site-cloudflare \
           --region ${{ env.AWS_REGION }} \
-          --capabilities CAPABILITY_IAM \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --parameter-overrides Stage=prod \
           --resolve-s3
     
     - name: Get API URL
       id: get-api-url
       run: |
         API_URL=$(aws cloudformation describe-stacks \
-          --stack-name personal-site-api \
+          --stack-name personal-site-cloudflare \
           --region ${{ env.AWS_REGION }} \
           --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
           --output text)
