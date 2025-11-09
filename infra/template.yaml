@@ -58,8 +58,10 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "personal-site-visitor-counter-${Stage}"
-      CodeUri: ../backend/target/personal-site-api-0.0.1-SNAPSHOT-aws.jar
+      CodeUri: ../backend
       Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest
+    Metadata:
+      BuildMethod: makefile
       Environment:
         Variables:
           VISITOR_COUNTS_TABLE: !Ref VisitorCountsTable
