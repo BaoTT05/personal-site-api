@@ -90,9 +90,9 @@ jobs:
           --stack-name personal-site-api \
           --region ${{ env.AWS_REGION }} \
           --capabilities CAPABILITY_IAM \
+          --resolve-s3 \
           --parameter-overrides \
-            Environment=prod \
-            DomainName=${{ secrets.DOMAIN_NAME }}
+            Stage=prod
     
     - name: Get API Gateway URL
       run: |
