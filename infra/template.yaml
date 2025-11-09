@@ -1,35 +1,15 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: 'Personal Website API - Serverless backend with visitor counter'
-
-Globals:
-  Function:
-    Timeout: 30
-    MemorySize: 512
-    Runtime: java21
-    Architectures:
-      - x86_64
-    Environment:
-      Variables:
-        SPRING_CLOUD_FUNCTION_DEFINITION: visit
-        JAVA_TOOL_OPTIONS: -XX:+TieredCompilation -XX:TieredStopAtLevel=1
+Description: 'Personal Website - Simple visitor counter'
 
 Parameters:
   Stage:
     Type: String
-    Default: dev
-    AllowedValues:
-      - dev
-      - prod
+    Default: prod
     Description: Deployment stage
-  
-  CorsOrigin:
-    Type: String
-    Default: "*"
-    Description: CORS origin for API Gateway (use your domain in production)
 
 Resources:
-  # DynamoDB Table for visitor counts
+  # DynamoDB Table
   VisitorCountsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -41,31 +21,20 @@ Resources:
       KeySchema:
         - AttributeName: pk
           KeyType: HASH
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: true
-      DeletionProtectionEnabled: !If 
-        - IsProd
-        - true
-        - false
-      Tags:
-        - Key: Project
-          Value: PersonalWebsite
-        - Key: Environment
-          Value: !Ref Stage
 
-  # Lambda function for visitor counter
+  # Lambda Function
   VisitorCounterFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "personal-site-visitor-counter-${Stage}"
+      FunctionName: !Sub "visitor-counter-${Stage}"
       CodeUri: ../backend
-      Handler: org.springframework.cloud.function.adapter.aws.FunctionInvoker::handleRequest
-    Metadata:
-      BuildMethod: java21-maven
+      Handler: dev.baotrinh.personal_site_api.VisitorCounterHandler::handleRequest
+      Runtime: java21
+      Timeout: 30
+      MemorySize: 512
       Environment:
         Variables:
           VISITOR_COUNTS_TABLE: !Ref VisitorCountsTable
-          SPRING_PROFILES_ACTIVE: !Ref Stage
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref VisitorCountsTable
@@ -73,109 +42,28 @@ Resources:
         VisitApi:
           Type: HttpApi
           Properties:
-            ApiId: !Ref PersonalSiteHttpApi
             Path: /visit
             Method: post
-      Tags:
-        Project: PersonalWebsite
-        Environment: !Ref Stage
+            ApiId: !Ref VisitorCounterApi
 
-  # HTTP API Gateway
-  PersonalSiteHttpApi:
+  # API Gateway
+  VisitorCounterApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-      Name: !Sub "personal-site-api-${Stage}"
-      Description: "HTTP API for Personal Website visitor counter"
       CorsConfiguration:
         AllowOrigins:
-          - !Ref CorsOrigin
+          - "*"
         AllowHeaders:
           - "Content-Type"
-          - "X-Amz-Date"
-          - "Authorization"
-          - "X-Api-Key"
         AllowMethods:
-          - GET
           - POST
           - OPTIONS
-        MaxAge: 600
-        AllowCredentials: false
-      Tags:
-        Project: PersonalWebsite
-        Environment: !Ref Stage
-
-  # CloudWatch Log Group for Lambda function
-  VisitorCounterFunctionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/personal-site-visitor-counter-${Stage}"
-      RetentionInDays: !If 
-        - IsProd
-        - 30
-        - 7
-
-  # CloudWatch Alarm for Lambda errors
-  VisitorCounterFunctionErrorAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
-    Properties:
-      AlarmName: !Sub "personal-site-visitor-counter-errors-${Stage}"
-      AlarmDescription: "Monitor Lambda function errors"
-      MetricName: Errors
-      Namespace: AWS/Lambda
-      Statistic: Sum
-      Period: 300
-      EvaluationPeriods: 2
-      Threshold: 5
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Dimensions:
-        - Name: FunctionName
-          Value: !Ref VisitorCounterFunction
-      TreatMissingData: notBreaching
-
-  # CloudWatch Alarm for Lambda duration
-  VisitorCounterFunctionDurationAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Condition: IsProd
-    Properties:
-      AlarmName: !Sub "personal-site-visitor-counter-duration-${Stage}"
-      AlarmDescription: "Monitor Lambda function duration"
-      MetricName: Duration
-      Namespace: AWS/Lambda
-      Statistic: Average
-      Period: 300
-      EvaluationPeriods: 2
-      Threshold: 25000  # 25 seconds
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Dimensions:
-        - Name: FunctionName
-          Value: !Ref VisitorCounterFunction
-      TreatMissingData: notBreaching
-
-Conditions:
-  IsProd: !Equals [!Ref Stage, "prod"]
 
 Outputs:
   ApiUrl:
-    Description: "HTTP API Gateway endpoint URL"
-    Value: !Sub "https://${PersonalSiteHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
-    Export:
-      Name: !Sub "personal-site-api-url-${Stage}"
-
-  VisitorCountsTableName:
-    Description: "DynamoDB table name for visitor counts"
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${VisitorCounterApi}.execute-api.${AWS::Region}.amazonaws.com"
+    
+  TableName:
+    Description: "DynamoDB table name"
     Value: !Ref VisitorCountsTable
-    Export:
-      Name: !Sub "personal-site-visitor-counts-table-${Stage}"
-
-  VisitorCounterFunctionName:
-    Description: "Lambda function name for visitor counter"
-    Value: !Ref VisitorCounterFunction
-    Export:
-      Name: !Sub "personal-site-visitor-counter-function-${Stage}"
-
-  VisitorCounterFunctionArn:
-    Description: "Lambda function ARN for visitor counter"
-    Value: !GetAtt VisitorCounterFunction.Arn
-    Export:
-      Name: !Sub "personal-site-visitor-counter-function-arn-${Stage}"
