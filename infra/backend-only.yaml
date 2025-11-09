@@ -67,8 +67,8 @@ Resources:
 
 Outputs:
   ApiUrl:
-    Description: "API Gateway endpoint URL"
-    Value: !Sub "https://${VisitorCounterApi}.execute-api.${AWS::Region}.amazonaws.com"
+    Description: "API Gateway endpoint URL"  
+    Value: !Sub "https://${VisitorCounterApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
     
   TableName:
     Description: "DynamoDB table name"
