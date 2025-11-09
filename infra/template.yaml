@@ -27,7 +27,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "visitor-counter-${Stage}"
-      CodeUri: ../backend
+      CodeUri: ../backend/target/personal-site-api-1.0.0.jar
       Handler: dev.baotrinh.personal_site_api.VisitorCounterHandler::handleRequest
       Runtime: java21
       Timeout: 30
