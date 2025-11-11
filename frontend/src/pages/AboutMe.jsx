@@ -56,9 +56,9 @@ const AboutMe = () => {
         </div>
 
         <div className="description">
-          <p>I'm a passionate software developer with expertise in modern web technologies. I create scalable applications and love solving complex problems through clean, efficient code.</p>
+          <p>I'm a passionate software developer with expertise in cloud architecture and full-stack development. Based in Kent, WA, I specialize in building scalable serverless applications and algorithmic trading systems.</p>
           
-          <p>I'm a great place for you to tell a story and let your users know a little more about you.</p>
+          <p>Recent University of Washington Computer Science graduate with 3+ years of experience in AWS cloud services, Python automation, and modern web technologies. I love solving complex problems through clean, efficient code.</p>
         </div>
       </div>
     </div>

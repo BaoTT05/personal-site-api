@@ -7,20 +7,20 @@ const Projects = () => {
       </div>
 
       <div className="projects-intro">
-        <p>I'm a paragraph. Click here to add your own text and edit me. It's easy. Just click "Edit Text" or double click me to add your own content and make changes to the font. I'm a great place for you to tell a story and let your users know a little more about you.</p>
+        <p>Here are some of my featured projects showcasing cloud architecture, algorithmic trading, and full-stack development. Each project demonstrates different aspects of modern software engineering and AWS cloud services.</p>
       </div>
 
       <div className="projects-list">
         <div className="project-item">
           <div className="project-content">
-            <h3 className="project-title">Project name 01</h3>
-            <p className="project-subtitle">Role Title</p>
-            <p className="project-description">I'm a paragraph. Click here to add your own text and edit me. It's easy. Just click "Edit Text" or double click me to add your own content and make changes to the font. I'm a great place for you to tell a story and let your users know a little more about you.</p>
+            <h3 className="project-title">AWS Cloud Challenge</h3>
+            <p className="project-subtitle">Full-Stack Serverless Portfolio</p>
+            <p className="project-description">Architected a complete serverless portfolio using React frontend and Java Lambda backend. Features atomic visitor tracking with DynamoDB, automated CI/CD via GitHub Actions, and global performance optimization with CloudFront CDN.</p>
           </div>
           <div className="project-image">
             <img 
-              src="/assets/project1-placeholder.png" 
-              alt="Project 1" 
+              src="/assets/aws-cloud-project.png" 
+              alt="AWS Cloud Challenge" 
               onError={(e) => {
                 e.target.style.display = 'none';
                 e.target.nextElementSibling.style.display = 'block';
@@ -34,14 +34,14 @@ const Projects = () => {
 
         <div className="project-item">
           <div className="project-content">
-            <h3 className="project-title">Project name 02</h3>
-            <p className="project-subtitle">Role Title</p>
-            <p className="project-description">I'm a paragraph. Click here to add your own text and edit me. It's easy. Just click "Edit Text" or double click me to add your own content and make changes to the font. I'm a great place for you to tell a story and let your users know a little more about you.</p>
+            <h3 className="project-title">Algorithmic Trading System</h3>
+            <p className="project-subtitle">Co-Founder & Lead Developer</p>
+            <p className="project-description">Built Python-based trading automation system with statistical modeling and machine learning. Achieved 87.2% accuracy rate with AWS EC2 deployment, processing real-time market data and executing algorithmic strategies for 1,000+ members.</p>
           </div>
           <div className="project-image">
             <img 
-              src="/assets/project2-placeholder.png" 
-              alt="Project 2" 
+              src="/assets/trading-system.png" 
+              alt="Trading System" 
               onError={(e) => {
                 e.target.style.display = 'none';
                 e.target.nextElementSibling.style.display = 'block';
@@ -49,6 +49,27 @@ const Projects = () => {
             />
             <div className="project-placeholder" style={{ display: 'none' }}>
               <div className="gradient-bg project2-gradient"></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="project-item">
+          <div className="project-content">
+            <h3 className="project-title">Intelligent Discord Support Bot</h3>
+            <p className="project-subtitle">AI-Powered Customer Service</p>
+            <p className="project-description">Developed retrieval-augmented chatbot using LangChain and OpenAI API with 90% response accuracy. Implemented FAISS vector search across 10K+ knowledge chunks, handling 1,000+ user interactions with automated onboarding and RBAC.</p>
+          </div>
+          <div className="project-image">
+            <img 
+              src="/assets/discord-bot.png" 
+              alt="Discord Bot" 
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.nextElementSibling.style.display = 'block';
+              }}
+            />
+            <div className="project-placeholder" style={{ display: 'none' }}>
+              <div className="gradient-bg project1-gradient"></div>
             </div>
           </div>
         </div>

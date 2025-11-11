@@ -12,7 +12,7 @@ const Footer = () => {
           </div>
           <div className="footer-section">
             <span className="footer-label">Write</span>
-            <span className="footer-value">info@mysite.com</span>
+            <span className="footer-value">BaoTrinh1995@gmail.com</span>
           </div>
           <div className="footer-section">
             <span className="footer-label">Follow</span>

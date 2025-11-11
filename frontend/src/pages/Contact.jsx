@@ -12,10 +12,13 @@ const Contact = () => {
         
         <div className="contact-info">
           <div className="contact-item">
-            <strong>Email:</strong> info@mysite.com
+            <strong>Email:</strong> BaoTrinh1995@gmail.com
           </div>
           <div className="contact-item">
-            <strong>Phone:</strong> 123-456-7890
+            <strong>LinkedIn:</strong> <a href="https://linkedin.com/in/BaoTrinh95" target="_blank" rel="noopener noreferrer">linkedin.com/in/BaoTrinh95</a>
+          </div>
+          <div className="contact-item">
+            <strong>Location:</strong> Kent, WA
           </div>
         </div>
       </div>
