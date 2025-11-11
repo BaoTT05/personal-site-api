@@ -1,65 +1,27 @@
-import { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
 const Header = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const location = useLocation();
 
-  const scrollToSection = (sectionId) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
-    setIsMenuOpen(false);
-  };
-
-  const toggleMenu = () => {
-    setIsMenuOpen(!isMenuOpen);
+  const getNavLinkClass = (path) => {
+    return `nav-link ${location.pathname === path ? 'active' : ''}`;
   };
 
   return (
     <header className="header">
-      <div className="header-container">
-        <div className="header-logo">
-          <h1 className="header-title">Bao Trinh</h1>
-          <p className="header-subtitle">Software Developer</p>
+      <div className="header-content">
+        <div className="logo">
+          <span className="logo-icon">📘</span>
+          <div className="logo-text">
+            <span className="name">Bao Trinh</span>
+            <span className="title">/ SOFTWARE DEVELOPER</span>
+          </div>
         </div>
-        
-        <nav className="header-nav">
-          <button
-            className="mobile-menu-toggle"
-            onClick={toggleMenu}
-            aria-label="Toggle navigation menu"
-          >
-            <span></span>
-            <span></span>
-            <span></span>
-          </button>
-          
-          <ul className={`nav-menu ${isMenuOpen ? 'nav-menu-open' : ''}`}>
-            <li>
-              <button 
-                className="nav-link"
-                onClick={() => scrollToSection('about')}
-              >
-                About Me
-              </button>
-            </li>
-            <li>
-              <button 
-                className="nav-link"
-                onClick={() => scrollToSection('resume')}
-              >
-                Resume
-              </button>
-            </li>
-            <li>
-              <button 
-                className="nav-link"
-                onClick={() => scrollToSection('projects')}
-              >
-                Projects
-              </button>
-            </li>
-          </ul>
+        <nav className="nav">
+          <Link to="/" className={getNavLinkClass('/')}>ABOUT ME</Link>
+          <Link to="/resume" className={getNavLinkClass('/resume')}>RESUME</Link>
+          <Link to="/projects" className={getNavLinkClass('/projects')}>PROJECTS</Link>
+          <Link to="/contact" className={getNavLinkClass('/contact')}>CONTACT</Link>
         </nav>
       </div>
     </header>

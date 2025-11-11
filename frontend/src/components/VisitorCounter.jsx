@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
 const VisitorCounter = () => {
   const [visitorCount, setVisitorCount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const location = useLocation();
 
-  const API_URL = import.meta.env.VITE_API_URL;
+  const API_URL = import.meta.env.VITE_API_URL || 
+                 'https://your-api-gateway-url/stage/visit'; // Replace with your actual API URL
 
   useEffect(() => {
     const incrementVisitorCount = async () => {
@@ -18,7 +21,11 @@ const VisitorCounter = () => {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({}),
+          body: JSON.stringify({
+            page: location.pathname,
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString()
+          }),
         });
 
         if (!response.ok) {
@@ -30,35 +37,35 @@ const VisitorCounter = () => {
       } catch (err) {
         console.error('Failed to fetch visitor count:', err);
         setError('Failed to load visitor count');
+        // Set a default value on error
+        setVisitorCount(null);
       } finally {
         setLoading(false);
       }
     };
 
     incrementVisitorCount();
-  }, []);
+  }, [location.pathname, API_URL]);
 
   if (loading) {
     return (
-      <div className="visitor-counter loading">
-        <p>Loading visitor count...</p>
+      <div className="visitor-counter">
+        <span>Loading...</span>
       </div>
     );
   }
 
-  if (error) {
+  if (error || visitorCount === null) {
     return (
-      <div className="visitor-counter error">
-        <p>{error}</p>
+      <div className="visitor-counter">
+        <span>👥 Visitors</span>
       </div>
     );
   }
 
   return (
     <div className="visitor-counter">
-      <p className="counter-text">
-        👥 Visitor #{visitorCount?.toLocaleString()}
-      </p>
+      <span>👥 Visitor #{visitorCount.toLocaleString()}</span>
     </div>
   );
 };

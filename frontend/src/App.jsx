@@ -1,24 +1,33 @@
-import './App.css'
-import Header from './components/Header'
-import Hero from './components/Hero'
-import AboutMe from './components/AboutMe'
-import Resume from './components/Resume'
-import Projects from './components/Projects'
-import Footer from './components/Footer'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Header from './components/Header';
+import Footer from './components/Footer';
+import VisitorCounter from './components/VisitorCounter';
+import AboutMe from './pages/AboutMe';
+import Resume from './pages/Resume';
+import Projects from './pages/Projects';
+import Contact from './pages/Contact';
+import './App.css';
 
 function App() {
   return (
-    <>
-      <Header />
-      <main className="main">
-        <Hero />
-        <AboutMe />
-        <Resume />
-        <Projects />
-      </main>
-      <Footer />
-    </>
-  )
+    <Router>
+      <div className="app">
+        <Header />
+        <main className="main">
+          <div className="container">
+            <Routes>
+              <Route path="/" element={<AboutMe />} />
+              <Route path="/resume" element={<Resume />} />
+              <Route path="/projects" element={<Projects />} />
+              <Route path="/contact" element={<Contact />} />
+            </Routes>
+          </div>
+        </main>
+        <Footer />
+        <VisitorCounter />
+      </div>
+    </Router>
+  );
 }
 
-export default App
+export default App;
