@@ -11,6 +11,12 @@ const VisitorCounter = () => {
                  'https://your-api-gateway-url/stage/visit'; // Replace with your actual API URL
 
   useEffect(() => {
+    // Only increment visitor count for /projects page
+    if (location.pathname !== '/projects') {
+      setLoading(false);
+      return;
+    }
+
     const incrementVisitorCount = async () => {
       try {
         setLoading(true);
@@ -37,7 +43,6 @@ const VisitorCounter = () => {
       } catch (err) {
         console.error('Failed to fetch visitor count:', err);
         setError('Failed to load visitor count');
-        // Set a default value on error
         setVisitorCount(null);
       } finally {
         setLoading(false);

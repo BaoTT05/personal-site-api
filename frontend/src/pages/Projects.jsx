@@ -1,4 +1,25 @@
+import { useState, useEffect } from 'react';
+
 const Projects = () => {
+  const [showVisitorCount, setShowVisitorCount] = useState(false);
+  const [visitorCount, setVisitorCount] = useState(null);
+
+  // Get visitor count from the main VisitorCounter in App.jsx
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const mainCounter = document.querySelector('.visitor-counter span');
+      if (mainCounter && mainCounter.textContent) {
+        const text = mainCounter.textContent;
+        const match = text.match(/#(\d+)/);
+        if (match) {
+          setVisitorCount(match[1]);
+        }
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="projects-layout">
       <div className="page-header">
@@ -26,8 +47,20 @@ const Projects = () => {
                 e.target.nextElementSibling.style.display = 'block';
               }}
             />
-            <div className="project-placeholder" style={{ display: 'none' }}>
-              <div className="gradient-bg project1-gradient"></div>
+            <div className="project-placeholder interactive-visitor-box" style={{ display: 'block' }} onClick={() => setShowVisitorCount(!showVisitorCount)}>
+              <div className="gradient-bg project1-gradient">
+                <div className="visitor-box-content">
+                  {showVisitorCount ? (
+                    <div className="visitor-count-display">
+                      <span>You're the #{visitorCount} visitor for this tab!</span>
+                    </div>
+                  ) : (
+                    <div className="click-prompt">
+                      <span>Test out my project! Click me!</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

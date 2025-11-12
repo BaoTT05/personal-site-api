@@ -8,27 +8,31 @@
 html, body {
   height: 100%;
   font-family: 'Arial', sans-serif;
-  background-color: #E8DDD4;
+  background-color: #E8DDD4 !important;
   color: #333;
   line-height: 1.6;
+  overflow-x: hidden;
 }
 
 body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  background-color: #E8DDD4 !important;
 }
 
 #root {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  background-color: #E8DDD4 !important;
 }
 
 .app {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  background-color: #E8DDD4 !important;
 }
 
 /* Header Styles */
@@ -323,10 +327,9 @@ body {
 }
 
 .resume-placeholder {
-  background: white;
+  background: transparent;
   border-radius: 8px;
   padding: 40px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
   text-align: center;
 }
 
@@ -442,6 +445,75 @@ body {
   background: linear-gradient(135deg, #FFA726 0%, #FB8C00 50%, #E65100 100%);
 }
 
+/* Interactive Visitor Box */
+.interactive-visitor-box {
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+}
+
+.interactive-visitor-box:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.visitor-box-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.visitor-box-content .visitor-count-display {
+  pointer-events: auto;
+}
+
+.click-prompt span {
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+  animation: pulse 2s infinite;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.visitor-count-display {
+  background: rgba(255, 255, 255, 0.95);
+  padding: 20px 25px;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  min-width: 120px;
+}
+
+.visitor-count-display .visitor-counter {
+  margin: 0;
+  font-weight: bold;
+  font-size: 18px;
+  display: block !important;
+}
+
+.visitor-count-display .visitor-counter {
+  cursor: pointer;
+}
+
+.visitor-count-display span {
+  color: #333 !important;
+  text-shadow: none !important;
+  font-size: 16px !important;
+  font-weight: bold !important;
+  text-align: center;
+  line-height: 1.3;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.05); }
+}
+
 /* Contact Page */
 .contact-content {
   max-width: 600px;
@@ -546,17 +618,9 @@ body {
   background: #007AFF;
 }
 
-/* Visitor Counter */
+/* Visitor Counter - Hidden for cleaner design */
 .visitor-counter {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: rgba(0, 122, 255, 0.9);
-  color: white;
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-size: 12px;
-  z-index: 1000;
+  display: none;
 }
 
 /* Responsive Design */
